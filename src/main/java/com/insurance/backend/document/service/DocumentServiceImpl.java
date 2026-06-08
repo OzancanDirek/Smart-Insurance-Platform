@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -159,34 +160,25 @@ public class DocumentServiceImpl implements IDocumentService
         }
     }
 
+    private static final Map<DocumentType, List<String>> KEYWORDS = Map.of(
+            DocumentType.IDENTITY, List.of("kimlik", "tc.", "t.c.", "nüfus"),
+            DocumentType.VEHICLE_LICENSE, List.of("tescil", "ruhsat", "plaka"),
+            DocumentType.EXPERT_REPORT, List.of("eksper", "hasar tespiti"),
+            DocumentType.INSURANCE_POLICY, List.of("police", "sigorta"),
+            DocumentType.ACCIDENT_REPORT, List.of("tutanak", "kaza")
+    );
+
     private DocumentType detectDocumentType(String text)
     {
         if (text == null || text.isEmpty()) return DocumentType.OTHER;
 
-        String lower = text.toLowerCase();
+        String lower = text.toLowerCase().replaceAll("\\s+", " ");
 
-        if (lower.contains("t.c. kimlik") || lower.contains("tc kimlik") || lower.contains("kimlik karti"))
-        {
-            return DocumentType.IDENTITY;
-        }
-        else if (lower.contains("tescil") || lower.contains("ruhsat"))
-        {
-            return DocumentType.VEHICLE_LICENSE;
-        }
-        else if (lower.contains("eksper") || lower.contains("hasar tespiti"))
-        {
-            return DocumentType.EXPERT_REPORT;
-        }
-        else if (lower.contains("police") || lower.contains("sigorta police"))
-        {
-            return DocumentType.INSURANCE_POLICY;
-        }
-        else if (lower.contains("kaza tutanagi") || lower.contains("tutanak"))
-        {
-            return DocumentType.ACCIDENT_REPORT;
-        }
-
-        return DocumentType.OTHER;
+        return KEYWORDS.entrySet().stream()
+                .filter(entry -> entry.getValue().stream().anyMatch(lower::contains))
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse(DocumentType.OTHER);
     }
 
     private Integer calculateRiskScore(String ocrText, Long claimId)
