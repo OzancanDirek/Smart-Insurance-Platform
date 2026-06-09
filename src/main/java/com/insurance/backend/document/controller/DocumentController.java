@@ -44,4 +44,10 @@ public class DocumentController
     {
         return ResponseEntity.ok(documentService.getDocumentsByType(documentType));
     }
+
+    @GetMapping("/search")
+    public ResponseEntity<List<DocumentResponse>> search(@RequestParam String q)
+    {
+        return ResponseEntity.ok(documentService.searchByText(q));
+    }
 }

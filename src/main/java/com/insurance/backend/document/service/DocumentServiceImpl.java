@@ -6,6 +6,8 @@ import com.insurance.backend.document.dto.DocumentResponse;
 import com.insurance.backend.document.entity.Document;
 import com.insurance.backend.document.enums.DocumentType;
 import com.insurance.backend.document.repository.DocumentRepository;
+import com.insurance.backend.document.search.DocumentSearchDocument;
+import com.insurance.backend.document.search.DocumentSearchRepository;
 import com.insurance.backend.user.entity.User;
 import com.insurance.backend.user.repository.UserRepository;
 import io.minio.BucketExistsArgs;
@@ -23,8 +25,10 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -37,6 +41,7 @@ public class DocumentServiceImpl implements IDocumentService
     private final ClaimRepository claimRepository;
     private final UserRepository userRepository;
     private final MinioClient minioClient;
+    private final DocumentSearchRepository documentSearchRepository;
 
     @Value("${minio.bucket-name}")
     private String bucketName;
@@ -75,7 +80,22 @@ public class DocumentServiceImpl implements IDocumentService
                 .uploadedBy(user)
                 .build();
 
-        return toResponse(documentRepository.save(document));
+        // sqle kaydet
+        Document saved = documentRepository.save(document);
+
+        // Elasticsearch'e kaydet
+        DocumentSearchDocument searchDoc = DocumentSearchDocument.builder()
+                .id(String.valueOf(saved.getId()))
+                .ocrText(ocrText)
+                .fileName(file.getOriginalFilename())
+                .documentType(documentType.name())
+                .claimId(claimId)
+                .documentId(saved.getId())
+                .riskScore(riskScore)
+                .build();
+        documentSearchRepository.save(searchDoc);
+
+        return toResponse(saved);
     }
 
     @Override
@@ -205,6 +225,24 @@ public class DocumentServiceImpl implements IDocumentService
         }
 
         return Math.min(score, 100);
+    }
+
+    public List<DocumentResponse> searchByText(String text)
+    {
+        List<DocumentSearchDocument> searchResults = documentSearchRepository.findByOcrTextContaining(text);
+        List<DocumentResponse> responses = new ArrayList<>();
+
+        for (DocumentSearchDocument searchDoc : searchResults)
+        {
+            Optional<Document> document = documentRepository.findById(searchDoc.getDocumentId());
+            if (document.isPresent())
+            {
+                DocumentResponse response = toResponse(document.get());
+                responses.add(response);
+            }
+        }
+
+        return responses;
     }
 
     private DocumentResponse toResponse(Document document)

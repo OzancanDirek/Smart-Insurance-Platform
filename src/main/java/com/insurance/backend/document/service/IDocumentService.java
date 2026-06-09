@@ -15,4 +15,6 @@ public interface IDocumentService
     DocumentResponse getDocumentById(Long id);
 
     List<DocumentResponse> getDocumentsByType(DocumentType documentType);
+
+    List<DocumentResponse> searchByText(String text);
 }
