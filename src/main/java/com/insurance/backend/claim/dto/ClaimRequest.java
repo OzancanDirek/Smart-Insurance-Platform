@@ -1,5 +1,6 @@
 package com.insurance.backend.claim.dto;
 
+import com.insurance.backend.claim.enums.ClaimType;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
@@ -12,4 +13,5 @@ public class ClaimRequest
     private String title;
 
     private String description;
+    private ClaimType claimType;
 }

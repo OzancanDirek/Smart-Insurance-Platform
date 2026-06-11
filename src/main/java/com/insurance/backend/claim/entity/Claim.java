@@ -1,6 +1,7 @@
 package com.insurance.backend.claim.entity;
 
 import com.insurance.backend.claim.enums.ClaimStatus;
+import com.insurance.backend.claim.enums.ClaimType;
 import com.insurance.backend.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
@@ -44,11 +45,14 @@ public class Claim
 
     private LocalDateTime updatedAt;
 
+    private ClaimType claimType;
+
     @PrePersist
     protected void onCreate()
     {
         createdAt = LocalDateTime.now();
         status = ClaimStatus.DRAFT;
+        if (claimType == null) claimType = ClaimType.OTHER;
     }
 
     @PreUpdate

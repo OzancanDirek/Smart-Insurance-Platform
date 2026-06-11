@@ -182,10 +182,11 @@ public class DocumentServiceImpl implements IDocumentService
 
     private static final Map<DocumentType, List<String>> KEYWORDS = Map.of(
             DocumentType.IDENTITY, List.of("kimlik", "tc.", "t.c.", "nüfus"),
-            DocumentType.VEHICLE_LICENSE, List.of("tescil", "ruhsat", "plaka"),
+            DocumentType.VEHICLE_LICENSE, List.of("tescil", "ruhsat", "plaka", "araç", "arac"),
             DocumentType.EXPERT_REPORT, List.of("eksper", "hasar tespiti"),
             DocumentType.INSURANCE_POLICY, List.of("police", "sigorta"),
-            DocumentType.ACCIDENT_REPORT, List.of("tutanak", "kaza")
+            DocumentType.ACCIDENT_REPORT, List.of("tutanak", "kaza tutanağı", "tespit"),
+            DocumentType.ACCIDENT_PHOTO, List.of("kaza", "foto", "fotoğraf", "hasar", "konum")
     );
 
     private DocumentType detectDocumentType(String text)

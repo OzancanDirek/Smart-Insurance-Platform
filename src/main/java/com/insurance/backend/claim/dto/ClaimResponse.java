@@ -1,6 +1,7 @@
 package com.insurance.backend.claim.dto;
 
 import com.insurance.backend.claim.enums.ClaimStatus;
+import com.insurance.backend.claim.enums.ClaimType;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -20,4 +21,6 @@ public class ClaimResponse
     private String assignedToFullName;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private ClaimType claimType;
+
 }
