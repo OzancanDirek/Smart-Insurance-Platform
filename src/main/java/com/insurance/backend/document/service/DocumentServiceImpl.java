@@ -11,6 +11,7 @@ import com.insurance.backend.document.search.DocumentSearchRepository;
 import com.insurance.backend.user.entity.User;
 import com.insurance.backend.user.repository.UserRepository;
 import io.minio.BucketExistsArgs;
+import io.minio.GetObjectArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
@@ -18,12 +19,17 @@ import lombok.RequiredArgsConstructor;
 import net.sourceforge.tess4j.Tesseract;
 import net.sourceforge.tess4j.TesseractException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
@@ -244,6 +250,34 @@ public class DocumentServiceImpl implements IDocumentService
         }
 
         return responses;
+    }
+
+    @Override
+    public Page<DocumentResponse> getAllDocumentsPaged(int page, int size)
+    {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return documentRepository.findAll(pageable).map(this::toResponse);
+    }
+
+    @Override
+    public byte[] downloadDocument(Long id)
+    {
+        Document doc = documentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Belge bulunamadı: " + id));
+        try
+        {
+            InputStream stream = minioClient.getObject(
+                    GetObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(doc.getFilePath().replace(bucketName + "/", ""))
+                            .build()
+            );
+            return stream.readAllBytes();
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Dosya indirilemedi: " + e.getMessage());
+        }
     }
 
     private DocumentResponse toResponse(Document document)

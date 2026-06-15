@@ -2,6 +2,7 @@ package com.insurance.backend.document.service;
 
 import com.insurance.backend.document.dto.DocumentResponse;
 import com.insurance.backend.document.enums.DocumentType;
+import org.springframework.data.domain.Page;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -17,4 +18,9 @@ public interface IDocumentService
     List<DocumentResponse> getDocumentsByType(DocumentType documentType);
 
     List<DocumentResponse> searchByText(String text);
+
+    Page<DocumentResponse> getAllDocumentsPaged(int page, int size);
+
+    byte[] downloadDocument(Long id);
+
 }

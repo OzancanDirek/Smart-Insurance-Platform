@@ -6,8 +6,10 @@ import com.insurance.backend.claim.enums.ClaimStatus;
 import com.insurance.backend.claim.service.IClaimService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -61,5 +63,18 @@ public class ClaimController
     public ResponseEntity<ClaimResponse> assignClaim(@PathVariable Long id, @RequestParam Long userId)
     {
         return ResponseEntity.ok(claimService.assignClaim(id, userId));
+    }
+
+    @GetMapping("/paged")
+    public ResponseEntity<Page<ClaimResponse>> getAllPaged(@RequestParam(defaultValue = "0") int page,@RequestParam(defaultValue = "10") int size,Authentication authentication)
+    {
+        String email = authentication.getName();
+        String role = authentication.getAuthorities().iterator().next().getAuthority();
+
+        if (role.equals("CUSTOMER"))
+        {
+            return ResponseEntity.ok(claimService.getClaimsByCustomerPaged(email, page, size));
+        }
+        return ResponseEntity.ok(claimService.getAllClaimsPaged(page, size));
     }
 }

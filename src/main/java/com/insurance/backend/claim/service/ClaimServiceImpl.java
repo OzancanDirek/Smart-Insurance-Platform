@@ -14,6 +14,10 @@ import com.insurance.backend.user.repository.UserRepository;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -116,6 +120,22 @@ public class ClaimServiceImpl implements IClaimService
 
         claim.setAssignedTo(user);
         return toResponse(claimRepository.save(claim));
+    }
+
+    @Override
+    public Page<ClaimResponse> getAllClaimsPaged(int page, int size)
+    {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return claimRepository.findAll(pageable).map(this::toResponse);
+    }
+
+    @Override
+    public Page<ClaimResponse> getClaimsByCustomerPaged(String email, int page, int size)
+    {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı"));
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return claimRepository.findByCustomerId(user.getId(), pageable).map(this::toResponse);
     }
 
     private ClaimResponse toResponse(Claim claim)
