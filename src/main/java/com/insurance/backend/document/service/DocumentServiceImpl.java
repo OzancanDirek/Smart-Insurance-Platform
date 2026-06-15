@@ -1,5 +1,6 @@
 package com.insurance.backend.document.service;
 
+import com.insurance.backend.audit.service.AuditLogService;
 import com.insurance.backend.claim.entity.Claim;
 import com.insurance.backend.claim.repository.ClaimRepository;
 import com.insurance.backend.document.dto.DocumentResponse;
@@ -48,6 +49,7 @@ public class DocumentServiceImpl implements IDocumentService
     private final UserRepository userRepository;
     private final MinioClient minioClient;
     private final DocumentSearchRepository documentSearchRepository;
+    private final AuditLogService auditLogService;
 
     @Value("${minio.bucket-name}")
     private String bucketName;
@@ -100,6 +102,14 @@ public class DocumentServiceImpl implements IDocumentService
                 .riskScore(riskScore)
                 .build();
         documentSearchRepository.save(searchDoc);
+
+        auditLogService.log(
+                email,
+                "DOCUMENT_UPLOADED",
+                "DOCUMENT",
+                saved.getId(),
+                "Belge yüklendi: " + saved.getFileName() + " → " + documentType.name()
+        );
 
         return toResponse(saved);
     }
@@ -264,14 +274,20 @@ public class DocumentServiceImpl implements IDocumentService
     {
         Document doc = documentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Belge bulunamadı: " + id));
+
+        auditLogService.log(
+                doc.getUploadedBy().getEmail(),
+                "DOCUMENT_VIEWED",
+                "DOCUMENT",
+                id,
+                "Belge görüntülendi: " + doc.getFileName());
         try
         {
             InputStream stream = minioClient.getObject(
                     GetObjectArgs.builder()
                             .bucket(bucketName)
                             .object(doc.getFilePath().replace(bucketName + "/", ""))
-                            .build()
-            );
+                            .build());
             return stream.readAllBytes();
         }
         catch (Exception e)

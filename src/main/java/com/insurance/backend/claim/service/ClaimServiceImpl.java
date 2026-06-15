@@ -1,5 +1,6 @@
 package com.insurance.backend.claim.service;
 
+import com.insurance.backend.audit.service.AuditLogService;
 import com.insurance.backend.claim.dto.ClaimRequest;
 import com.insurance.backend.claim.dto.ClaimResponse;
 import com.insurance.backend.claim.entity.Claim;
@@ -31,24 +32,41 @@ public class ClaimServiceImpl implements IClaimService
     private final UserRepository userRepository;
     private final DocumentValidationService documentValidationService;
     private final DocumentRepository documentRepository;
+    private final AuditLogService auditLogService;
 
     @Override
     public ClaimResponse createClaim(ClaimRequest request, String email)
     {
-        User customer = userRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı"));
+        User customer = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı"));
+
         Claim claim = Claim.builder()
                 .title(request.getTitle())
                 .description(request.getDescription())
                 .claimType(request.getClaimType() != null ? request.getClaimType() : ClaimType.OTHER)
                 .customer(customer)
                 .build();
-        return toResponse(claimRepository.save(claim));
+        Claim saved = claimRepository.save(claim);
+
+        auditLogService.log(email, "CLAIM_CREATED", "CLAIM", saved.getId(),
+                "Yeni başvuru oluşturuldu: " + saved.getTitle());
+
+        return toResponse(saved);
     }
 
     @Override
     public ClaimResponse getClaimById(Long id)
     {
-        Claim claim = claimRepository.findById(id).orElseThrow(() -> new RuntimeException("Hasar kaydı bulunamadi: " + id));
+        Claim claim = claimRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Hasar kaydı bulunamadı: " + id));
+
+        auditLogService.log(
+                claim.getCustomer().getEmail(),
+                "CLAIM_VIEWED",
+                "CLAIM",
+                id,
+                "Başvuru görüntülendi: " + claim.getTitle()
+        );
         return toResponse(claim);
     }
 
@@ -103,10 +121,17 @@ public class ClaimServiceImpl implements IClaimService
                 throw new RuntimeException("Eksik belgeler: " + String.join(", ", missingDocs));
             }
         }
-
-
         claim.setStatus(status);
-        return toResponse(claimRepository.save(claim));
+        Claim saved = claimRepository.save(claim);
+
+        auditLogService.log(
+                saved.getCustomer().getEmail(),
+                "STATUS_UPDATED",
+                "CLAIM",
+                saved.getId(),
+                "Durum güncellendi: " + status.name()
+        );
+        return toResponse(saved);
     }
 
     @Override
@@ -118,8 +143,17 @@ public class ClaimServiceImpl implements IClaimService
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı: " + userId));
 
+
         claim.setAssignedTo(user);
-        return toResponse(claimRepository.save(claim));
+        Claim saved = claimRepository.save(claim);
+        auditLogService.log(
+                user.getEmail(),
+                "CLAIM_ASSIGNED",
+                "CLAIM",
+                saved.getId(),
+                "Başvuru atandı: " + user.getFirstName() + " " + user.getLastName()
+        );
+        return toResponse(saved);
     }
 
     @Override

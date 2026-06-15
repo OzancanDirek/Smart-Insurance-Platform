@@ -1,5 +1,6 @@
 package com.insurance.backend.user.service;
 
+import com.insurance.backend.audit.service.AuditLogService;
 import com.insurance.backend.user.dto.UserRequest;
 import com.insurance.backend.user.dto.UserResponse;
 import com.insurance.backend.user.entity.User;
@@ -15,9 +16,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class UserServiceImpl implements IUserService
 {
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-
+    private final AuditLogService auditLogService;
 
     @Override
     public UserResponse createUser(UserRequest request)
@@ -37,6 +39,8 @@ public class UserServiceImpl implements IUserService
                 .build();
 
         User saved = userRepository.save(user);
+        auditLogService.log(saved.getEmail(), "USER_CREATED", "USER", saved.getId(),
+                "Yeni kullanıcı oluşturuldu: " + saved.getFirstName() + " " + saved.getLastName() + " (" + saved.getRole() + ")");
         return toResponse(saved);
     }
 
@@ -73,16 +77,21 @@ public class UserServiceImpl implements IUserService
         user.setRole(request.getRole());
 
         User updated = userRepository.save(user);
+        auditLogService.log(updated.getEmail(), "USER_UPDATED", "USER", updated.getId(),
+                "Kullanıcı güncellendi: " + updated.getFirstName() + " " + updated.getLastName());
+
         return toResponse(updated);
     }
 
     @Override
     public void deleteUser(Long id)
     {
-        if (!userRepository.existsById(id))
-        {
-            throw new RuntimeException("Kullanıcı bulunamadı: " + id);
-        }
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı: " + id));
+
+        auditLogService.log(user.getEmail(), "USER_DELETED", "USER", id,
+                "Kullanıcı silindi: " + user.getFirstName() + " " + user.getLastName());
+
         userRepository.deleteById(id);
     }
 
