@@ -10,17 +10,19 @@ import com.insurance.backend.claim.repository.ClaimRepository;
 import com.insurance.backend.document.enums.DocumentType;
 import com.insurance.backend.document.repository.DocumentRepository;
 import com.insurance.backend.document.service.DocumentValidationService;
+import com.insurance.backend.notification.service.EmailService;
 import com.insurance.backend.user.entity.User;
 import com.insurance.backend.user.repository.UserRepository;
-import org.springframework.transaction.annotation.Transactional;
 import lombok.AllArgsConstructor;
-import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,6 +35,7 @@ public class ClaimServiceImpl implements IClaimService
     private final DocumentValidationService documentValidationService;
     private final DocumentRepository documentRepository;
     private final AuditLogService auditLogService;
+    private final EmailService emailService;
 
     @Override
     public ClaimResponse createClaim(ClaimRequest request, String email)
@@ -104,7 +107,6 @@ public class ClaimServiceImpl implements IClaimService
         Claim claim = claimRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Hasar kaydı bulunamadı: " + id));
 
-        // DRAFTTAN PENDING geçişinde belge kontrolü yap
         if (status == ClaimStatus.PENDING && claim.getStatus() == ClaimStatus.DRAFT)
         {
             ClaimType claimType = claim.getClaimType() != null ? claim.getClaimType() : ClaimType.OTHER;
@@ -121,6 +123,7 @@ public class ClaimServiceImpl implements IClaimService
                 throw new RuntimeException("Eksik belgeler: " + String.join(", ", missingDocs));
             }
         }
+
         claim.setStatus(status);
         Claim saved = claimRepository.save(claim);
 
@@ -131,6 +134,24 @@ public class ClaimServiceImpl implements IClaimService
                 saved.getId(),
                 "Durum güncellendi: " + status.name()
         );
+
+        if (status == ClaimStatus.APPROVED || status == ClaimStatus.REJECTED) // Email bildirimi — sadece onay veya red durumunda
+        {
+            try
+            {
+                emailService.sendClaimStatusEmail(
+                        saved.getCustomer().getEmail(),
+                        saved.getCustomer().getFirstName() + " " + saved.getCustomer().getLastName(),
+                        saved.getTitle(),
+                        status.name()
+                );
+            }
+            catch (Exception e)
+            {
+                // Email gönderilemese bile işlem devam etsin
+            }
+        }
+
         return toResponse(saved);
     }
 
@@ -170,6 +191,41 @@ public class ClaimServiceImpl implements IClaimService
                 .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı"));
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         return claimRepository.findByCustomerId(user.getId(), pageable).map(this::toResponse);
+    }
+
+    @Override
+    public Map<String, Long> getStats()
+    {
+        List<Claim> allClaims = claimRepository.findAll();
+
+        return Map.of(
+                "total", (long) allClaims.size(),
+                "draft", allClaims.stream().filter(c -> c.getStatus() == ClaimStatus.DRAFT).count(),
+                "pending", allClaims.stream().filter(c -> c.getStatus() == ClaimStatus.PENDING).count(),
+                "inReview", allClaims.stream().filter(c -> c.getStatus() == ClaimStatus.IN_REVIEW).count(),
+                "approved", allClaims.stream().filter(c -> c.getStatus() == ClaimStatus.APPROVED).count(),
+                "rejected", allClaims.stream().filter(c -> c.getStatus() == ClaimStatus.REJECTED).count(),
+                "trafficAccident", allClaims.stream().filter(c -> c.getClaimType() == ClaimType.TRAFFIC_ACCIDENT).count(),
+                "theft", allClaims.stream().filter(c -> c.getClaimType() == ClaimType.THEFT).count(),
+                "naturalDisaster", allClaims.stream().filter(c -> c.getClaimType() == ClaimType.NATURAL_DISASTER).count(),
+                "other", allClaims.stream().filter(c -> c.getClaimType() == null || c.getClaimType() == ClaimType.OTHER).count()
+        );
+    }
+
+    @Override
+    public Map<String, Long> getStatsByCustomer(String email)//sadece giris yapan customerın statları
+    {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Kullanici bulunamadi"));
+
+        List<Claim> claims = claimRepository.findByCustomerId(user.getId());
+        return Map.of(
+                "total", (long) claims.size(),
+                "draft", claims.stream().filter(c -> c.getStatus() == ClaimStatus.DRAFT).count(),
+                "pending", claims.stream().filter(c -> c.getStatus() == ClaimStatus.PENDING).count(),
+                "approved", claims.stream().filter(c -> c.getStatus() == ClaimStatus.APPROVED).count(),
+                "rejected", claims.stream().filter(c -> c.getStatus() == ClaimStatus.REJECTED).count()
+        );
     }
 
     private ClaimResponse toResponse(Claim claim)

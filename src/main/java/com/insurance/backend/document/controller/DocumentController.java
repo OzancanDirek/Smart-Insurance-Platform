@@ -22,6 +22,13 @@ public class DocumentController
 {
     private final IDocumentService documentService;
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteDocument(@PathVariable Long id)
+    {
+        documentService.deleteDocument(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/upload/{claimId}")
     public ResponseEntity<DocumentResponse> uploadDocument(
             @RequestParam("file") MultipartFile file,

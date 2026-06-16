@@ -14,6 +14,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/claims")
@@ -66,7 +67,7 @@ public class ClaimController
     }
 
     @GetMapping("/paged")
-    public ResponseEntity<Page<ClaimResponse>> getAllPaged(@RequestParam(defaultValue = "0") int page,@RequestParam(defaultValue = "10") int size,Authentication authentication)
+    public ResponseEntity<Page<ClaimResponse>> getAllPaged(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size, Authentication authentication)
     {
         String email = authentication.getName();
         String role = authentication.getAuthorities().iterator().next().getAuthority();
@@ -76,5 +77,17 @@ public class ClaimController
             return ResponseEntity.ok(claimService.getClaimsByCustomerPaged(email, page, size));
         }
         return ResponseEntity.ok(claimService.getAllClaimsPaged(page, size));
+    }
+
+    @GetMapping("/stats")
+    public ResponseEntity<Map<String, Long>> getStats()
+    {
+        return ResponseEntity.ok(claimService.getStats());
+    }
+
+    @GetMapping("/stats/me")
+    public ResponseEntity<Map<String, Long>> getMyStats(Authentication authentication)
+    {
+        return ResponseEntity.ok(claimService.getStatsByCustomer(authentication.getName()));
     }
 }

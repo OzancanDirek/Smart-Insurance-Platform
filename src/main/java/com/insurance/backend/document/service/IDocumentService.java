@@ -9,6 +9,8 @@ import java.util.List;
 
 public interface IDocumentService
 {
+    void deleteDocument(Long id);
+
     DocumentResponse uploadDocument(MultipartFile file, Long claimId, String email);
 
     List<DocumentResponse> getDocumentsByClaimId(Long claimId);

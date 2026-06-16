@@ -2,11 +2,13 @@ package com.insurance.backend.claim.service;
 
 import com.insurance.backend.claim.dto.ClaimRequest;
 import com.insurance.backend.claim.dto.ClaimResponse;
+import com.insurance.backend.claim.entity.Claim;
 import com.insurance.backend.claim.enums.ClaimStatus;
 import org.springframework.data.domain.Page;
 
 
 import java.util.List;
+import java.util.Map;
 
 public interface IClaimService
 {
@@ -28,4 +30,7 @@ public interface IClaimService
 
     Page<ClaimResponse> getClaimsByCustomerPaged(String email, int page, int size); // Müşteri için sadece kendinkini getir
 
+    Map<String, Long> getStats();
+
+    Map<String, Long> getStatsByCustomer(String email);
 }

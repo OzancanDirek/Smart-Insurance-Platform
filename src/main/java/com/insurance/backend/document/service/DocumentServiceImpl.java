@@ -16,6 +16,7 @@ import io.minio.GetObjectArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
 import lombok.RequiredArgsConstructor;
 import net.sourceforge.tess4j.Tesseract;
 import net.sourceforge.tess4j.TesseractException;
@@ -55,8 +56,56 @@ public class DocumentServiceImpl implements IDocumentService
     private String bucketName;
 
     @Override
+    public void deleteDocument(Long id)
+    {
+        Document doc = documentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Belge bulunamadı: " + id));
+
+        // MinIO'dan sil
+        try
+        {
+            minioClient.removeObject(
+                    RemoveObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(doc.getFilePath().replace(bucketName + "/", ""))
+                            .build()
+            );
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Dosya silinemedi: " + e.getMessage());
+        }
+
+        // Elasticsearch'ten sil
+        documentSearchRepository.deleteById(String.valueOf(id));
+
+        // Audit log
+        auditLogService.log(
+                doc.getUploadedBy().getEmail(),
+                "DOCUMENT_DELETED",
+                "DOCUMENT",
+                id,
+                "Belge silindi: " + doc.getFileName()
+        );
+
+        // PostgreSQL'den sil
+        documentRepository.deleteById(id);
+    }
+
+    @Override
     public DocumentResponse uploadDocument(MultipartFile file, Long claimId, String email)
     {
+        String contentType = file.getContentType();
+        if (contentType == null || (!contentType.equals("image/jpeg") && !contentType.equals("image/png") && !contentType.equals("application/pdf")))
+        {
+            throw new RuntimeException("Geçersiz dosya tipi. Sadece PDF, JPG ve PNG kabul edilir.");
+        }
+
+        if (file.getSize() > 10 * 1024 * 1024) //Dosya boyutu kontrolü (10MB)
+        {
+            throw new RuntimeException("Dosya boyutu 10MB'i gecemez.");
+        }
+
         Claim claim = claimRepository.findById(claimId)
                 .orElseThrow(() -> new RuntimeException("Hasar kaydı bulunamadı: " + claimId));
 
