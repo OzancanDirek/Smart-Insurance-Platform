@@ -10,6 +10,9 @@ import com.insurance.backend.claim.repository.ClaimRepository;
 import com.insurance.backend.document.enums.DocumentType;
 import com.insurance.backend.document.repository.DocumentRepository;
 import com.insurance.backend.document.service.DocumentValidationService;
+import com.insurance.backend.exception.ClaimNotFoundException;
+import com.insurance.backend.exception.MissingDocumentsException;
+import com.insurance.backend.exception.UserNotFoundException;
 import com.insurance.backend.notification.service.EmailService;
 import com.insurance.backend.user.entity.User;
 import com.insurance.backend.user.repository.UserRepository;
@@ -41,7 +44,7 @@ public class ClaimServiceImpl implements IClaimService
     public ClaimResponse createClaim(ClaimRequest request, String email)
     {
         User customer = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı"));
+                .orElseThrow(() -> new UserNotFoundException(email));
 
         Claim claim = Claim.builder()
                 .title(request.getTitle())
@@ -61,7 +64,7 @@ public class ClaimServiceImpl implements IClaimService
     public ClaimResponse getClaimById(Long id)
     {
         Claim claim = claimRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Hasar kaydı bulunamadı: " + id));
+                .orElseThrow(() -> new ClaimNotFoundException(id));
 
         auditLogService.log(
                 claim.getCustomer().getEmail(),
@@ -85,7 +88,8 @@ public class ClaimServiceImpl implements IClaimService
     @Override
     public List<ClaimResponse> getClaimsByCustomer(String email)
     {
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("Kullanici bulunamadi"));
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UserNotFoundException(email));
         return claimRepository.findByCustomerId(user.getId())
                 .stream()
                 .map(this::toResponse)
@@ -105,7 +109,7 @@ public class ClaimServiceImpl implements IClaimService
     public ClaimResponse updateStatus(Long id, ClaimStatus status)
     {
         Claim claim = claimRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Hasar kaydı bulunamadı: " + id));
+                .orElseThrow(() -> new ClaimNotFoundException(id));
 
         if (status == ClaimStatus.PENDING && claim.getStatus() == ClaimStatus.DRAFT)
         {
@@ -120,7 +124,7 @@ public class ClaimServiceImpl implements IClaimService
 
             if (!missingDocs.isEmpty())
             {
-                throw new RuntimeException("Eksik belgeler: " + String.join(", ", missingDocs));
+                throw new MissingDocumentsException(missingDocs);
             }
         }
 
@@ -159,11 +163,10 @@ public class ClaimServiceImpl implements IClaimService
     public ClaimResponse assignClaim(Long claimId, Long userId)
     {
         Claim claim = claimRepository.findById(claimId)
-                .orElseThrow(() -> new RuntimeException("Hasar kaydı bulunamadı: " + claimId));
+                .orElseThrow(() -> new ClaimNotFoundException(claimId));
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı: " + userId));
-
+                .orElseThrow(() -> new UserNotFoundException(userId));
 
         claim.setAssignedTo(user);
         Claim saved = claimRepository.save(claim);
@@ -188,7 +191,7 @@ public class ClaimServiceImpl implements IClaimService
     public Page<ClaimResponse> getClaimsByCustomerPaged(String email, int page, int size)
     {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı"));
+                .orElseThrow(() -> new UserNotFoundException(email));
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         return claimRepository.findByCustomerId(user.getId(), pageable).map(this::toResponse);
     }
@@ -216,7 +219,7 @@ public class ClaimServiceImpl implements IClaimService
     public Map<String, Long> getStatsByCustomer(String email)//sadece giris yapan customerın statları
     {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Kullanici bulunamadi"));
+                .orElseThrow(() -> new UserNotFoundException(email));
 
         List<Claim> claims = claimRepository.findByCustomerId(user.getId());
         return Map.of(
@@ -243,6 +246,7 @@ public class ClaimServiceImpl implements IClaimService
                 .createdAt(claim.getCreatedAt())
                 .updatedAt(claim.getUpdatedAt())
                 .claimType(claim.getClaimType())
+                .customerEmail(claim.getCustomer().getEmail())
                 .build();
     }
 }

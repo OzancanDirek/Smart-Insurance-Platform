@@ -9,11 +9,10 @@ import lombok.Setter;
 @Setter
 public class LoginRequest
 {
-
-    @NotBlank
-    @Email
+    @NotBlank(message = "Email boş bırakılamaz")
+    @Email(message = "Geçerli bir email adresi girin")
     private String email;
 
-    @NotBlank
+    @NotBlank(message = "Şifre boş bırakılamaz")
     private String password;
 }

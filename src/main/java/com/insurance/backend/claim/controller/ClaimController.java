@@ -37,9 +37,18 @@ public class ClaimController
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ClaimResponse> getClaimById(@PathVariable Long id)
+    public ResponseEntity<ClaimResponse> getClaimById(@PathVariable Long id, Authentication authentication)
     {
-        return ResponseEntity.ok(claimService.getClaimById(id));
+        String email = authentication.getName();
+        String role = authentication.getAuthorities().iterator().next().getAuthority();
+
+        ClaimResponse claim = claimService.getClaimById(id);
+
+        if (role.equals("ROLE_CUSTOMER") && !claim.getCustomerEmail().equals(email))
+        {
+            return ResponseEntity.status(403).build();
+        }
+        return ResponseEntity.ok(claim);
     }
 
     @GetMapping("/my")
@@ -80,8 +89,13 @@ public class ClaimController
     }
 
     @GetMapping("/stats")
-    public ResponseEntity<Map<String, Long>> getStats()
+    public ResponseEntity<Map<String, Long>> getStats(Authentication authentication)
     {
+        String role = authentication.getAuthorities().iterator().next().getAuthority();
+        if (!role.equals("ROLE_ADMIN") && !role.equals("ROLE_MANAGER"))
+        {
+            return ResponseEntity.status(403).build();
+        }
         return ResponseEntity.ok(claimService.getStats());
     }
 

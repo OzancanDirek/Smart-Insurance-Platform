@@ -28,6 +28,11 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import com.insurance.backend.exception.ClaimNotFoundException;
+import com.insurance.backend.exception.DocumentNotFoundException;
+import com.insurance.backend.exception.FileStorageException;
+import com.insurance.backend.exception.InvalidFileException;
+import com.insurance.backend.exception.UserNotFoundException;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -59,7 +64,7 @@ public class DocumentServiceImpl implements IDocumentService
     public void deleteDocument(Long id)
     {
         Document doc = documentRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Belge bulunamadı: " + id));
+                .orElseThrow(() -> new DocumentNotFoundException(id));
 
         // MinIO'dan sil
         try
@@ -73,7 +78,7 @@ public class DocumentServiceImpl implements IDocumentService
         }
         catch (Exception e)
         {
-            throw new RuntimeException("Dosya silinemedi: " + e.getMessage());
+            throw new FileStorageException("Dosya silinemedi: " + e.getMessage());
         }
 
         // Elasticsearch'ten sil
@@ -98,19 +103,19 @@ public class DocumentServiceImpl implements IDocumentService
         String contentType = file.getContentType();
         if (contentType == null || (!contentType.equals("image/jpeg") && !contentType.equals("image/png") && !contentType.equals("application/pdf")))
         {
-            throw new RuntimeException("Geçersiz dosya tipi. Sadece PDF, JPG ve PNG kabul edilir.");
+            throw new InvalidFileException("Geçersiz dosya tipi. Sadece PDF, JPG ve PNG kabul edilir.");
         }
 
         if (file.getSize() > 10 * 1024 * 1024) //Dosya boyutu kontrolü (10MB)
         {
-            throw new RuntimeException("Dosya boyutu 10MB'i gecemez.");
+            throw new InvalidFileException("Dosya boyutu 10MB'ı geçemez.");
         }
 
         Claim claim = claimRepository.findById(claimId)
-                .orElseThrow(() -> new RuntimeException("Hasar kaydı bulunamadı: " + claimId));
+                .orElseThrow(() -> new ClaimNotFoundException(claimId));
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı"));
+                .orElseThrow(() -> new UserNotFoundException(email));
 
         String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
 
@@ -157,8 +162,7 @@ public class DocumentServiceImpl implements IDocumentService
                 "DOCUMENT_UPLOADED",
                 "DOCUMENT",
                 saved.getId(),
-                "Belge yüklendi: " + saved.getFileName() + " → " + documentType.name()
-        );
+                "Belge yüklendi: " + saved.getFileName() + " → " + documentType.name());
 
         return toResponse(saved);
     }
@@ -176,7 +180,7 @@ public class DocumentServiceImpl implements IDocumentService
     public DocumentResponse getDocumentById(Long id)
     {
         Document document = documentRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Belge bulunamadı: " + id));
+                .orElseThrow(() -> new DocumentNotFoundException(id));
 
         return toResponse(document);
     }
@@ -212,7 +216,7 @@ public class DocumentServiceImpl implements IDocumentService
         }
         catch (Exception e)
         {
-            throw new RuntimeException("Dosya yuklenemedi: " + e.getMessage());
+            throw new FileStorageException("Dosya yüklenemedi: " + e.getMessage());
         }
     }
 
@@ -322,7 +326,7 @@ public class DocumentServiceImpl implements IDocumentService
     public byte[] downloadDocument(Long id)
     {
         Document doc = documentRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Belge bulunamadı: " + id));
+                .orElseThrow(() -> new DocumentNotFoundException(id));
 
         auditLogService.log(
                 doc.getUploadedBy().getEmail(),
@@ -341,7 +345,7 @@ public class DocumentServiceImpl implements IDocumentService
         }
         catch (Exception e)
         {
-            throw new RuntimeException("Dosya indirilemedi: " + e.getMessage());
+            throw new FileStorageException("Dosya indirilemedi: " + e.getMessage());
         }
     }
 

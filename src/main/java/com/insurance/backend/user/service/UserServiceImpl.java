@@ -1,6 +1,8 @@
 package com.insurance.backend.user.service;
 
 import com.insurance.backend.audit.service.AuditLogService;
+import com.insurance.backend.exception.EmailAlreadyExistsException;
+import com.insurance.backend.exception.UserNotFoundException;
 import com.insurance.backend.user.dto.UserRequest;
 import com.insurance.backend.user.dto.UserResponse;
 import com.insurance.backend.user.entity.User;
@@ -16,7 +18,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class UserServiceImpl implements IUserService
 {
-
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditLogService auditLogService;
@@ -26,7 +27,7 @@ public class UserServiceImpl implements IUserService
     {
         if (userRepository.existsByEmail(request.getEmail()))
         {
-            throw new RuntimeException("Bu email zaten kayıtlı: " + request.getEmail());
+            throw new EmailAlreadyExistsException(request.getEmail());
         }
 
         User user = User.builder()
@@ -47,7 +48,8 @@ public class UserServiceImpl implements IUserService
     @Override
     public UserResponse getUserById(Long id)
     {
-        User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException(id));
         return toResponse(user);
     }
 
@@ -55,7 +57,7 @@ public class UserServiceImpl implements IUserService
     public UserResponse getUserByEmail(String email)
     {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı: " + email));
+                .orElseThrow(() -> new UserNotFoundException(email));
         return toResponse(user);
     }
 
@@ -71,7 +73,8 @@ public class UserServiceImpl implements IUserService
     @Override
     public UserResponse updateUser(Long id, UserRequest request)
     {
-        User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException(id));
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
         user.setRole(request.getRole());
@@ -87,7 +90,7 @@ public class UserServiceImpl implements IUserService
     public void deleteUser(Long id)
     {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı: " + id));
+                .orElseThrow(() -> new UserNotFoundException(id));
 
         auditLogService.log(user.getEmail(), "USER_DELETED", "USER", id,
                 "Kullanıcı silindi: " + user.getFirstName() + " " + user.getLastName());

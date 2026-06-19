@@ -4,6 +4,7 @@ import com.insurance.backend.user.enums.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -11,19 +12,22 @@ import lombok.Setter;
 @Setter
 public class UserRequest
 {
-    @NotBlank
-    @Email
+    @NotBlank(message = "Email boş bırakılamaz")
+    @Email(message = "Geçerli bir email adresi girin")
     private String email;
 
-    @NotBlank
+    @NotBlank(message = "Şifre boş bırakılamaz")
+    @Size(min = 6, message = "Şifre en az 6 karakter olmalı")
     private String password;
 
-    @NotBlank
+    @NotBlank(message = "Ad boş bırakılamaz")
+    @Size(min = 2, max = 50, message = "Ad 2-50 karakter arasında olmalı")
     private String firstName;
 
-    @NotBlank
+    @NotBlank(message = "Soyad boş bırakılamaz")
+    @Size(min = 2, max = 50, message = "Soyad 2-50 karakter arasında olmalı")
     private String lastName;
 
-    @NotNull
+    @NotNull(message = "Rol seçilmelidir")
     private Role role;
 }
