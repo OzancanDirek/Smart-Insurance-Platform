@@ -33,4 +33,10 @@ public interface IClaimService
     Map<String, Long> getStats();
 
     Map<String, Long> getStatsByCustomer(String email);
+
+    Map<String, Long> getStatsByAssignedStaff(String email);
+
+    Page<ClaimResponse> getClaimsByAssignedStaffPaged(String email, int page, int size);
+
+    public void  deleteClaim(Long id);
 }

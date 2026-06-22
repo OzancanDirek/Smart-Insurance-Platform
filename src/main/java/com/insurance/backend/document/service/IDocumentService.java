@@ -25,4 +25,5 @@ public interface IDocumentService
 
     byte[] downloadDocument(Long id);
 
+    Page<DocumentResponse> getDocumentsByAssignedStaffPaged(String email, int page, int size);
 }

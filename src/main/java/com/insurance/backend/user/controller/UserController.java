@@ -2,6 +2,7 @@ package com.insurance.backend.user.controller;
 
 import com.insurance.backend.user.dto.UserRequest;
 import com.insurance.backend.user.dto.UserResponse;
+import com.insurance.backend.user.dto.UserUpdateRequest;
 import com.insurance.backend.user.service.IUserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -44,7 +45,7 @@ public class UserController
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<UserResponse> updateUser(@PathVariable Long id,@Valid @RequestBody UserRequest request)
+    public ResponseEntity<UserResponse> updateUser(@PathVariable Long id, @Valid @RequestBody UserUpdateRequest request)
     {
         return ResponseEntity.ok(userService.updateUser(id, request));
     }

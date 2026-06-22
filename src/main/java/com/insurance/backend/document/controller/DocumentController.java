@@ -9,6 +9,7 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -63,8 +64,15 @@ public class DocumentController
     }
 
     @GetMapping("/paged")
-    public ResponseEntity<Page<DocumentResponse>> getAllPaged(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size)
+    public ResponseEntity<Page<DocumentResponse>> getAllPaged(@RequestParam(defaultValue = "0") int page,@RequestParam(defaultValue = "10") int size,Authentication authentication)
     {
+        String email = authentication.getName();
+        String role = authentication.getAuthorities().iterator().next().getAuthority();
+
+        if (role.equals("ROLE_STAFF") || role.equals("ROLE_EXPERT"))
+        {
+            return ResponseEntity.ok(documentService.getDocumentsByAssignedStaffPaged(email, page, size));
+        }
         return ResponseEntity.ok(documentService.getAllDocumentsPaged(page, size));
     }
 

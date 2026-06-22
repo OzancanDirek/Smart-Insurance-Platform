@@ -60,50 +60,6 @@ public class ClaimServiceImpl implements IClaimService
         return toResponse(saved);
     }
 
-    @Override
-    public ClaimResponse getClaimById(Long id)
-    {
-        Claim claim = claimRepository.findById(id)
-                .orElseThrow(() -> new ClaimNotFoundException(id));
-
-        auditLogService.log(
-                claim.getCustomer().getEmail(),
-                "CLAIM_VIEWED",
-                "CLAIM",
-                id,
-                "Başvuru görüntülendi: " + claim.getTitle()
-        );
-        return toResponse(claim);
-    }
-
-    @Override
-    public List<ClaimResponse> getAllClaims()
-    {
-        return claimRepository.findAll()
-                .stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<ClaimResponse> getClaimsByCustomer(String email)
-    {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserNotFoundException(email));
-        return claimRepository.findByCustomerId(user.getId())
-                .stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<ClaimResponse> getClaimsByStatus(ClaimStatus status)
-    {
-        return claimRepository.findByStatus(status)
-                .stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
-    }
 
     @Override
     public ClaimResponse updateStatus(Long id, ClaimStatus status)
@@ -160,7 +116,87 @@ public class ClaimServiceImpl implements IClaimService
     }
 
     @Override
-    public ClaimResponse assignClaim(Long claimId, Long userId)
+    public Page<ClaimResponse> getAllClaimsPaged(int page, int size)
+    {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return claimRepository.findAll(pageable).map(this::toResponse);
+    }
+
+    @Override
+    public ClaimResponse getClaimById(Long id)
+    {
+        Claim claim = claimRepository.findById(id)
+                .orElseThrow(() -> new ClaimNotFoundException(id));
+
+        auditLogService.log(
+                claim.getCustomer().getEmail(),
+                "CLAIM_VIEWED",
+                "CLAIM",
+                id,
+                "Başvuru görüntülendi: " + claim.getTitle()
+        );
+        return toResponse(claim);
+    }
+
+    @Override
+    public List<ClaimResponse> getAllClaims()
+    {
+        return claimRepository.findAll()
+                .stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<ClaimResponse> getClaimsByCustomer(String email)// Müşterinin kendi başvurularını getirir
+    {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UserNotFoundException(email));
+
+        return claimRepository.findByCustomerId(user.getId())
+                .stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public Map<String, Long> getStatsByCustomer(String email)//sadece giris yapan customerın statları
+    {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UserNotFoundException(email));
+
+        List<Claim> claims = claimRepository.findByCustomerId(user.getId());
+        return Map.of(
+                "total", (long) claims.size(),
+                "draft", claims.stream().filter(c -> c.getStatus() == ClaimStatus.DRAFT).count(),
+                "pending", claims.stream().filter(c -> c.getStatus() == ClaimStatus.PENDING).count(),
+                "approved", claims.stream().filter(c -> c.getStatus() == ClaimStatus.APPROVED).count(),
+                "rejected", claims.stream().filter(c -> c.getStatus() == ClaimStatus.REJECTED).count()
+        );
+    }
+
+    @Override
+    public Page<ClaimResponse> getClaimsByCustomerPaged(String email, int page, int size)// Müşterinin kendi başvuruları paginationla getir
+    {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UserNotFoundException(email));
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return claimRepository.findByCustomerId(user.getId(), pageable).map(this::toResponse);
+    }
+
+    @Override
+    public List<ClaimResponse> getClaimsByStatus(ClaimStatus status)//Belirli bir duruma sahip başvuruları filtreler
+    {
+        return claimRepository.findByStatus(status)
+                .stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+
+    @Override
+    public ClaimResponse assignClaim(Long claimId, Long userId)// Başvuruyu bir personel/eksper'e atar
     {
         Claim claim = claimRepository.findById(claimId)
                 .orElseThrow(() -> new ClaimNotFoundException(claimId));
@@ -180,21 +216,6 @@ public class ClaimServiceImpl implements IClaimService
         return toResponse(saved);
     }
 
-    @Override
-    public Page<ClaimResponse> getAllClaimsPaged(int page, int size)
-    {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        return claimRepository.findAll(pageable).map(this::toResponse);
-    }
-
-    @Override
-    public Page<ClaimResponse> getClaimsByCustomerPaged(String email, int page, int size)
-    {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserNotFoundException(email));
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        return claimRepository.findByCustomerId(user.getId(), pageable).map(this::toResponse);
-    }
 
     @Override
     public Map<String, Long> getStats()
@@ -215,20 +236,42 @@ public class ClaimServiceImpl implements IClaimService
         );
     }
 
+
+
     @Override
-    public Map<String, Long> getStatsByCustomer(String email)//sadece giris yapan customerın statları
+    public Map<String, Long> getStatsByAssignedStaff(String email)// Personele atanmış başvuruların istatistiklerini hesaplar
     {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UserNotFoundException(email));
 
-        List<Claim> claims = claimRepository.findByCustomerId(user.getId());
+        List<Claim> claimsAssingToStaff = claimRepository.findByAssignedToId(user.getId());
         return Map.of(
-                "total", (long) claims.size(),
-                "draft", claims.stream().filter(c -> c.getStatus() == ClaimStatus.DRAFT).count(),
-                "pending", claims.stream().filter(c -> c.getStatus() == ClaimStatus.PENDING).count(),
-                "approved", claims.stream().filter(c -> c.getStatus() == ClaimStatus.APPROVED).count(),
-                "rejected", claims.stream().filter(c -> c.getStatus() == ClaimStatus.REJECTED).count()
+                "total", (long) claimsAssingToStaff.size(),
+                "pending", claimsAssingToStaff.stream().filter(c -> c.getStatus() == ClaimStatus.PENDING).count(),
+                "inReview", claimsAssingToStaff.stream().filter(c -> c.getStatus() == ClaimStatus.IN_REVIEW).count(),
+                "approved", claimsAssingToStaff.stream().filter(c -> c.getStatus() == ClaimStatus.APPROVED).count(),
+                "rejected", claimsAssingToStaff.stream().filter(c -> c.getStatus() == ClaimStatus.REJECTED).count()
         );
+    }
+
+
+    @Override
+    public Page<ClaimResponse> getClaimsByAssignedStaffPaged(String email, int page, int size)// Personel başvuruları paginationla getir
+    {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UserNotFoundException(email));
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return claimRepository.findByAssignedToId(user.getId(), pageable).map(this::toResponse);
+    }
+
+    @Override
+    public void  deleteClaim(Long id)
+    {
+        Claim claim = claimRepository.findById(id)
+                .orElseThrow(() -> new ClaimNotFoundException(id));
+
+        claimRepository.delete(claim);
     }
 
     private ClaimResponse toResponse(Claim claim)

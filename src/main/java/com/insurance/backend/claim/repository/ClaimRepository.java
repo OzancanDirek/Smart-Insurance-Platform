@@ -10,13 +10,15 @@ import java.util.List;
 
 public interface ClaimRepository extends JpaRepository<Claim, Long>
 {
-    List<Claim> findByCustomerId(Long customerId);
+    List<Claim> findByCustomerId(Long customerId); //musterinin kendi basvuruları
 
-    List<Claim> findByStatus(ClaimStatus status);
+    List<Claim> findByStatus(ClaimStatus status); // duruma gore filtreleme
 
-    List<Claim> findByAssignedToId(Long userId);
+    List<Claim> findByAssignedToId(Long userId); //dashboard istatistikler
 
     Page<Claim> findAll(Pageable pageable);
 
     Page<Claim> findByCustomerId(Long customerId, Pageable pageable);
+
+    Page<Claim> findByAssignedToId(Long userId, Pageable pageable); // pagination
 }

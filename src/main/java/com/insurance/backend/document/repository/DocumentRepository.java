@@ -14,7 +14,6 @@ public interface DocumentRepository extends JpaRepository<Document, Long>
 
     List<Document> findByDocumentType(DocumentType documentType);
 
-    List<Document> findByUploadedById(Long userId);
-    Page<Document> findByClaimId(Long claimId, Pageable pageable);
+    Page<Document> findByClaim_AssignedToId(Long userId, Pageable pageable);
 
 }

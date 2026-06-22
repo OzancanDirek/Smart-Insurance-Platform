@@ -5,6 +5,7 @@ import com.insurance.backend.exception.EmailAlreadyExistsException;
 import com.insurance.backend.exception.UserNotFoundException;
 import com.insurance.backend.user.dto.UserRequest;
 import com.insurance.backend.user.dto.UserResponse;
+import com.insurance.backend.user.dto.UserUpdateRequest;
 import com.insurance.backend.user.entity.User;
 import com.insurance.backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -71,7 +72,7 @@ public class UserServiceImpl implements IUserService
     }
 
     @Override
-    public UserResponse updateUser(Long id, UserRequest request)
+    public UserResponse updateUser(Long id, UserUpdateRequest request)
     {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException(id));

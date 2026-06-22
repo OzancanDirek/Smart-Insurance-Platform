@@ -60,6 +60,12 @@ public class DocumentServiceImpl implements IDocumentService
     @Value("${minio.bucket-name}")
     private String bucketName;
 
+    @Value("${tesseract.datapath}")
+    private String tesseractDatapath;
+
+    @Value("${tesseract.language}")
+    private String tesseractLanguage;
+
     @Override
     public void deleteDocument(Long id)
     {
@@ -129,7 +135,7 @@ public class DocumentServiceImpl implements IDocumentService
         DocumentType documentType = detectDocumentType(ocrText);
 
         // Risk skoru
-        Integer riskScore = calculateRiskScore(ocrText, claimId);
+        Integer riskScore = calculateRiskScore(ocrText, claimId, documentType);
 
         Document document = Document.builder()
                 .fileName(file.getOriginalFilename())
@@ -231,9 +237,8 @@ public class DocumentServiceImpl implements IDocumentService
             }
 
             Tesseract tesseract = new Tesseract();
-
-            tesseract.setDatapath("/opt/homebrew/share/tessdata");
-            tesseract.setLanguage("tur+eng");
+            tesseract.setDatapath(tesseractDatapath);
+            tesseract.setLanguage(tesseractLanguage);
 
             String text = tesseract.doOCR(tempFile);
             Files.deleteIfExists(tempFile.toPath());
@@ -265,13 +270,17 @@ public class DocumentServiceImpl implements IDocumentService
         String lower = text.toLowerCase().replaceAll("\\s+", " ");
 
         return KEYWORDS.entrySet().stream()
-                .filter(entry -> entry.getValue().stream().anyMatch(lower::contains))
+                .map(entry -> Map.entry(
+                        entry.getKey(),
+                        entry.getValue().stream().filter(lower::contains).count()
+                ))
+                .filter(entry -> entry.getValue() > 0)
+                .max(Map.Entry.comparingByValue())
                 .map(Map.Entry::getKey)
-                .findFirst()
                 .orElse(DocumentType.OTHER);
     }
 
-    private Integer calculateRiskScore(String ocrText, Long claimId)
+    private Integer calculateRiskScore(String ocrText, Long claimId, DocumentType documentType)
     {
         // OCR metni boş geldi: +20 puan,
         // Aynı claim'e 10'dan fazla belge yüklendi: +15 puan
@@ -292,6 +301,12 @@ public class DocumentServiceImpl implements IDocumentService
         if (ocrText != null && ocrText.length() < 10)
         {
             score += 25;
+        }
+        boolean duplicateTypeExists = existingDocs.stream()
+                .anyMatch(d -> d.getDocumentType() == documentType);
+        if (duplicateTypeExists)
+        {
+            score += 30;
         }
 
         return Math.min(score, 100);
@@ -347,6 +362,16 @@ public class DocumentServiceImpl implements IDocumentService
         {
             throw new FileStorageException("Dosya indirilemedi: " + e.getMessage());
         }
+    }
+
+    @Override
+    public Page<DocumentResponse> getDocumentsByAssignedStaffPaged(String email, int page, int size) //staffa atanmış paginationla getir
+    {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UserNotFoundException(email));
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return documentRepository.findByClaim_AssignedToId(user.getId(), pageable).map(this::toResponse);
     }
 
     private DocumentResponse toResponse(Document document)

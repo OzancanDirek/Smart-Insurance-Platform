@@ -24,10 +24,27 @@ public class ClaimController
     private final IClaimService claimService;
 
     @PostMapping
-    public ResponseEntity<ClaimResponse> createClaim(@Valid @RequestBody ClaimRequest request, @AuthenticationPrincipal String email)
+    public ResponseEntity<ClaimResponse> createClaim(@Valid @RequestBody ClaimRequest request, @AuthenticationPrincipal String email, Authentication authentication)
     {
+        String role = authentication.getAuthorities().iterator().next().getAuthority();
+        if (!role.equals("ROLE_CUSTOMER"))
+        {
+            return ResponseEntity.status(403).build();
+        }
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(claimService.createClaim(request, email));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteClaim(@PathVariable Long id, Authentication authentication)
+    {
+        String role = authentication.getAuthorities().iterator().next().getAuthority();
+        if (!role.equals("ROLE_ADMIN"))
+        {
+            return ResponseEntity.status(403).build();
+        }
+        claimService.deleteClaim(id);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping
@@ -64,14 +81,43 @@ public class ClaimController
     }
 
     @PatchMapping("/{id}/status")
-    public ResponseEntity<ClaimResponse> updateStatus(@PathVariable Long id, @RequestParam ClaimStatus status)
+    public ResponseEntity<ClaimResponse> updateStatus(@PathVariable Long id, @RequestParam ClaimStatus status, Authentication authentication)
     {
+        String role = authentication.getAuthorities().iterator().next().getAuthority();
+
+        if (status == ClaimStatus.APPROVED || status == ClaimStatus.REJECTED)
+        {
+            if (!role.equals("ROLE_MANAGER") && !role.equals("ROLE_ADMIN"))
+            {
+                return ResponseEntity.status(403).build();
+            }
+        }
+        else if (status == ClaimStatus.IN_REVIEW)
+        {
+            if (!role.equals("ROLE_STAFF") && !role.equals("ROLE_EXPERT") && !role.equals("ROLE_MANAGER") && !role.equals("ROLE_ADMIN"))
+            {
+                return ResponseEntity.status(403).build();
+            }
+        }
+        else if (status == ClaimStatus.PENDING)
+        {
+            if (!role.equals("ROLE_CUSTOMER") && !role.equals("ROLE_STAFF") && !role.equals("ROLE_EXPERT") && !role.equals("ROLE_ADMIN"))
+            {
+                return ResponseEntity.status(403).build();
+            }
+        }
+
         return ResponseEntity.ok(claimService.updateStatus(id, status));
     }
 
     @PatchMapping("/{id}/assign")
-    public ResponseEntity<ClaimResponse> assignClaim(@PathVariable Long id, @RequestParam Long userId)
+    public ResponseEntity<ClaimResponse> assignClaim(@PathVariable Long id, @RequestParam Long userId, Authentication authentication)
     {
+        String role = authentication.getAuthorities().iterator().next().getAuthority();
+        if (!role.equals("ROLE_MANAGER") && !role.equals("ROLE_ADMIN"))
+        {
+            return ResponseEntity.status(403).build();
+        }
         return ResponseEntity.ok(claimService.assignClaim(id, userId));
     }
 
@@ -81,9 +127,13 @@ public class ClaimController
         String email = authentication.getName();
         String role = authentication.getAuthorities().iterator().next().getAuthority();
 
-        if (role.equals("CUSTOMER"))
+        if (role.equals("ROLE_CUSTOMER"))
         {
             return ResponseEntity.ok(claimService.getClaimsByCustomerPaged(email, page, size));
+        }
+        if (role.equals("ROLE_STAFF") || role.equals("ROLE_EXPERT"))
+        {
+            return ResponseEntity.ok(claimService.getClaimsByAssignedStaffPaged(email, page, size));
         }
         return ResponseEntity.ok(claimService.getAllClaimsPaged(page, size));
     }
@@ -103,5 +153,11 @@ public class ClaimController
     public ResponseEntity<Map<String, Long>> getMyStats(Authentication authentication)
     {
         return ResponseEntity.ok(claimService.getStatsByCustomer(authentication.getName()));
+    }
+
+    @GetMapping("/stats/assigned")
+    public ResponseEntity<Map<String, Long>> getAssignedStats(Authentication authentication)
+    {
+        return ResponseEntity.ok(claimService.getStatsByAssignedStaff(authentication.getName()));
     }
 }

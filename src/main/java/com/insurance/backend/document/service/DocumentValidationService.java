@@ -55,14 +55,4 @@ public class DocumentValidationService
                 .map(doc -> DOCUMENT_NAMES.getOrDefault(doc, doc.name()))
                 .collect(Collectors.toList());
     }
-
-    public boolean isComplete(ClaimType claimType, List<DocumentType> uploadedTypes)
-    {
-        return getMissingDocuments(claimType, uploadedTypes).isEmpty();
-    }
-
-    public List<DocumentType> getRequiredDocuments(ClaimType claimType)
-    {
-        return REQUIRED_DOCUMENTS.getOrDefault(claimType, List.of());
-    }
 }

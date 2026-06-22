@@ -2,6 +2,7 @@ package com.insurance.backend.user.service;
 
 import com.insurance.backend.user.dto.UserRequest;
 import com.insurance.backend.user.dto.UserResponse;
+import com.insurance.backend.user.dto.UserUpdateRequest;
 
 import java.util.List;
 
@@ -15,7 +16,7 @@ public interface IUserService
 
     List<UserResponse> getAllUsers();
 
-    UserResponse updateUser(Long id, UserRequest request);
+    UserResponse updateUser(Long id, UserUpdateRequest request);
 
     void deleteUser(Long id);
 }
