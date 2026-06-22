@@ -1,5 +1,6 @@
 package com.insurance.backend.document.controller;
 
+import com.insurance.backend.claim.service.IClaimService;
 import com.insurance.backend.document.dto.DocumentResponse;
 import com.insurance.backend.document.enums.DocumentType;
 import com.insurance.backend.document.service.IDocumentService;
@@ -13,6 +14,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import com.insurance.backend.claim.dto.ClaimResponse;
 
 import java.util.List;
 
@@ -22,10 +24,28 @@ import java.util.List;
 public class DocumentController
 {
     private final IDocumentService documentService;
+    private final IClaimService claimService;
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteDocument(@PathVariable Long id)
+    public ResponseEntity<Void> deleteDocument(@PathVariable Long id, Authentication authentication)
     {
+        String email = authentication.getName();
+        String role = authentication.getAuthorities().iterator().next().getAuthority();
+
+        DocumentResponse doc = documentService.getDocumentById(id);
+        ClaimResponse claim = claimService.getClaimById(doc.getClaimId());
+
+        if (role.equals("ROLE_CUSTOMER") && !claim.getCustomerEmail().equals(email))
+        {
+            return ResponseEntity.status(403).build();
+        }
+
+        if ((role.equals("ROLE_STAFF") || role.equals("ROLE_EXPERT"))
+                && (claim.getAssignedToEmail() == null || !claim.getAssignedToEmail().equals(email)))
+        {
+            return ResponseEntity.status(403).build();
+        }
+
         documentService.deleteDocument(id);
         return ResponseEntity.noContent().build();
     }
@@ -40,8 +60,24 @@ public class DocumentController
     }
 
     @GetMapping("/claim/{claimId}")
-    public ResponseEntity<List<DocumentResponse>> getDocumentsByClaimId(@PathVariable Long claimId)
+    public ResponseEntity<List<DocumentResponse>> getDocumentsByClaimId(@PathVariable Long claimId, Authentication authentication)
     {
+        String email = authentication.getName();
+        String role = authentication.getAuthorities().iterator().next().getAuthority();
+
+        ClaimResponse claim = claimService.getClaimById(claimId);
+
+        if (role.equals("ROLE_CUSTOMER") && !claim.getCustomerEmail().equals(email))
+        {
+            return ResponseEntity.status(403).build();
+        }
+
+        if ((role.equals("ROLE_STAFF") || role.equals("ROLE_EXPERT"))
+                && (claim.getAssignedToEmail() == null || !claim.getAssignedToEmail().equals(email)))
+        {
+            return ResponseEntity.status(403).build();
+        }
+
         return ResponseEntity.ok(documentService.getDocumentsByClaimId(claimId));
     }
 
@@ -64,7 +100,7 @@ public class DocumentController
     }
 
     @GetMapping("/paged")
-    public ResponseEntity<Page<DocumentResponse>> getAllPaged(@RequestParam(defaultValue = "0") int page,@RequestParam(defaultValue = "10") int size,Authentication authentication)
+    public ResponseEntity<Page<DocumentResponse>> getAllPaged(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size, Authentication authentication)
     {
         String email = authentication.getName();
         String role = authentication.getAuthorities().iterator().next().getAuthority();
@@ -77,11 +113,27 @@ public class DocumentController
     }
 
     @GetMapping("/{id}/download")
-    public ResponseEntity<byte[]> downloadDocument(@PathVariable Long id)
+    public ResponseEntity<byte[]> downloadDocument(@PathVariable Long id, Authentication authentication)
     {
         try
         {
+            String email = authentication.getName();
+            String role = authentication.getAuthorities().iterator().next().getAuthority();
+
             DocumentResponse doc = documentService.getDocumentById(id);
+            ClaimResponse claim = claimService.getClaimById(doc.getClaimId());
+
+            if (role.equals("ROLE_CUSTOMER") && !claim.getCustomerEmail().equals(email))
+            {
+                return ResponseEntity.status(403).build();
+            }
+
+            if ((role.equals("ROLE_STAFF") || role.equals("ROLE_EXPERT"))
+                    && (claim.getAssignedToEmail() == null || !claim.getAssignedToEmail().equals(email)))
+            {
+                return ResponseEntity.status(403).build();
+            }
+
             byte[] data = documentService.downloadDocument(id);
 
             HttpHeaders headers = new HttpHeaders();

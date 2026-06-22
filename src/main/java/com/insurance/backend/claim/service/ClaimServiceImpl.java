@@ -290,6 +290,7 @@ public class ClaimServiceImpl implements IClaimService
                 .updatedAt(claim.getUpdatedAt())
                 .claimType(claim.getClaimType())
                 .customerEmail(claim.getCustomer().getEmail())
+                .assignedToEmail(claim.getAssignedTo() != null ? claim.getAssignedTo().getEmail() : null)
                 .build();
     }
 }

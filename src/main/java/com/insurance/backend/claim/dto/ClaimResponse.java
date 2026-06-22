@@ -23,5 +23,7 @@ public class ClaimResponse
     private LocalDateTime updatedAt;
     private ClaimType claimType;
     private String customerEmail;
+    private String assignedToEmail;
+
 
 }

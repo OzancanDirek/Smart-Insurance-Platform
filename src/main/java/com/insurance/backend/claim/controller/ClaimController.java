@@ -65,6 +65,13 @@ public class ClaimController
         {
             return ResponseEntity.status(403).build();
         }
+
+        if ((role.equals("ROLE_STAFF") || role.equals("ROLE_EXPERT"))
+                && (claim.getAssignedToEmail() == null || !claim.getAssignedToEmail().equals(email)))
+        {
+            return ResponseEntity.status(403).build();
+        }
+
         return ResponseEntity.ok(claim);
     }
 
