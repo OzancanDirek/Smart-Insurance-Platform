@@ -2,8 +2,10 @@ package com.insurance.backend.notification.service;
 
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
+import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -13,6 +15,7 @@ public class EmailService
 
     private final JavaMailSender mailSender;
 
+    @Async
     public void sendClaimStatusEmail(String toEmail, String customerName, String claimTitle, String status)
     {
         try
@@ -61,6 +64,27 @@ public class EmailService
         catch (Exception e)
         {
             throw new RuntimeException("Email gönderilemedi: " + e.getMessage());
+        }
+    }
+
+    @Async
+    public void sendPasswordResetEmail(String to, String firstName, String token)
+    {
+        System.out.println("EMAIL GÖNDERİLİYOR: " + to);
+        try
+        {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setTo(to);
+            message.setSubject("InsuranceOS — Şifre Sıfırlama");
+            String resetLink = "http://localhost:3000/reset-password?token=" + token;
+            message.setText("Merhaba " + firstName + ",\n\nŞifre sıfırlama linkiniz:\n" + resetLink + "\n\nBu link 1 saat geçerlidir.");
+            mailSender.send(message);
+            System.out.println("EMAIL GÖNDERİLDİ");
+        }
+        catch (Exception e)
+        {
+            System.out.println("EMAIL HATASI: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }

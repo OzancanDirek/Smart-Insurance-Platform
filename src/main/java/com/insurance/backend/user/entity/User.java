@@ -41,6 +41,9 @@ public class User
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    private String resetToken;
+    private LocalDateTime resetTokenExpiry;
+
     @PrePersist
     protected void onCreate()
     {

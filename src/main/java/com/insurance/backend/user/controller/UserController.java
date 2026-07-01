@@ -1,5 +1,6 @@
 package com.insurance.backend.user.controller;
 
+import com.insurance.backend.user.dto.ChangePasswordRequest;
 import com.insurance.backend.user.dto.UserRequest;
 import com.insurance.backend.user.dto.UserResponse;
 import com.insurance.backend.user.dto.UserUpdateRequest;
@@ -8,8 +9,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -55,5 +58,18 @@ public class UserController
     {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/change-password")
+    public ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request,Authentication authentication)
+    {
+        userService.changePassword(authentication.getName(), request);
+        return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/{id}/toggle-active")
+    public ResponseEntity<UserResponse> toggleUserActive(@PathVariable Long id, Authentication authentication)
+    {
+        return ResponseEntity.ok(userService.toggleUserActive(id, authentication.getName()));
     }
 }

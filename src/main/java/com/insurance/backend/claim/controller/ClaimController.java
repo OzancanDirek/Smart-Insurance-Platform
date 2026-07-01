@@ -7,7 +7,10 @@ import com.insurance.backend.claim.service.IClaimService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -164,5 +167,20 @@ public class ClaimController
     public ResponseEntity<Map<String, Long>> getAssignedStats(Authentication authentication)
     {
         return ResponseEntity.ok(claimService.getStatsByAssignedStaff(authentication.getName()));
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportToExcel(Authentication authentication) throws Exception
+    {
+        String email = authentication.getName();
+        String role = authentication.getAuthorities().iterator().next().getAuthority();
+
+        byte[] excelData = claimService.exportClaimsToExcel(email, role);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        headers.setContentDisposition(ContentDisposition.attachment().filename("basvurular.xlsx").build());
+
+        return ResponseEntity.ok().headers(headers).body(excelData);
     }
 }

@@ -7,6 +7,7 @@ import com.insurance.backend.claim.enums.ClaimStatus;
 import org.springframework.data.domain.Page;
 
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -39,4 +40,6 @@ public interface IClaimService
     Page<ClaimResponse> getClaimsByAssignedStaffPaged(String email, int page, int size);
 
     void deleteClaim(Long id, String performedBy);
+
+    byte[] exportClaimsToExcel(String email, String role) throws Exception;
 }

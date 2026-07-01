@@ -7,8 +7,10 @@ import com.insurance.backend.claim.entity.Claim;
 import com.insurance.backend.claim.enums.ClaimStatus;
 import com.insurance.backend.claim.enums.ClaimType;
 import com.insurance.backend.claim.repository.ClaimRepository;
+import com.insurance.backend.document.entity.Document;
 import com.insurance.backend.document.enums.DocumentType;
 import com.insurance.backend.document.repository.DocumentRepository;
+import com.insurance.backend.document.search.DocumentSearchRepository;
 import com.insurance.backend.document.service.DocumentValidationService;
 import com.insurance.backend.exception.ClaimNotFoundException;
 import com.insurance.backend.exception.MissingDocumentsException;
@@ -16,7 +18,20 @@ import com.insurance.backend.exception.UserNotFoundException;
 import com.insurance.backend.notification.service.EmailService;
 import com.insurance.backend.user.entity.User;
 import com.insurance.backend.user.repository.UserRepository;
-import lombok.AllArgsConstructor;
+import io.minio.MinioClient;
+import io.minio.RemoveObjectArgs;
+
+import lombok.RequiredArgsConstructor;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.IndexedColors;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -24,12 +39,15 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
-@AllArgsConstructor
+@RequiredArgsConstructor
 @Transactional
 public class ClaimServiceImpl implements IClaimService
 {
@@ -39,6 +57,11 @@ public class ClaimServiceImpl implements IClaimService
     private final DocumentRepository documentRepository;
     private final AuditLogService auditLogService;
     private final EmailService emailService;
+    private final MinioClient minioClient;
+    private final DocumentSearchRepository documentSearchRepository;
+
+    @Value("${minio.bucket-name}")
+    private String bucketName;
 
     @Override
     public ClaimResponse createClaim(ClaimRequest request, String email)
@@ -296,21 +319,121 @@ public class ClaimServiceImpl implements IClaimService
         return claimRepository.findByAssignedToId(user.getId(), pageable).map(this::toResponse);
     }
 
+
     @Override
     public void deleteClaim(Long id, String performedBy)
     {
         Claim claim = claimRepository.findById(id)
                 .orElseThrow(() -> new ClaimNotFoundException(id));
 
+        // Önce claim'e ait tüm belgelerin silinmesi icin
+        List<Document> documents = documentRepository.findByClaimId(id);
+        for (Document doc : documents)
+        {
+            try
+            {
+                minioClient.removeObject(RemoveObjectArgs.builder()
+                        .bucket(bucketName)
+                        .object(doc.getFilePath().replace(bucketName + "/", ""))
+                        .build());
+            }
+            catch (Exception e)
+            {
+                // MinIO'dan silinemese bile devam edecek
+            }
+            documentSearchRepository.deleteById(String.valueOf(doc.getId()));
+        }
+
         auditLogService.log(
                 performedBy,
                 "CLAIM_DELETED",
                 "CLAIM",
                 id,
-                "Başvuru silindi: " + claim.getTitle()
+                "Başvuru silindi: " + claim.getTitle() + " (" + documents.size() + " belge ile birlikte)"
         );
 
         claimRepository.delete(claim);
+    }
+
+    @Override
+    public byte[] exportClaimsToExcel(String email, String role) throws Exception
+    {
+        List<ClaimResponse> claims;
+
+        if (role.equals("ROLE_CUSTOMER"))
+        {
+            claims = getClaimsByCustomer(email);
+        }
+        else if (role.equals("ROLE_STAFF") || role.equals("ROLE_EXPERT"))
+        {
+            User staffUser = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new UserNotFoundException(email));
+
+            claims = claimRepository.findByAssignedToId(staffUser.getId())
+                    .stream()
+                    .map(this::toResponse)
+                    .collect(Collectors.toList());
+        }
+        else
+        {
+            claims = getAllClaims();
+        }
+
+        Workbook workbook = new XSSFWorkbook();
+        Sheet sheet = workbook.createSheet("Başvurular");
+
+        // Başlık stili
+        CellStyle headerStyle = workbook.createCellStyle();
+        headerStyle.setFillForegroundColor(IndexedColors.DARK_BLUE.getIndex());
+        headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        Font headerFont = workbook.createFont();
+        headerFont.setColor(IndexedColors.WHITE.getIndex());
+        headerFont.setBold(true);
+        headerStyle.setFont(headerFont);
+
+        // Başlık satırı
+        Row headerRow = sheet.createRow(0);
+        String[] columns = {"ID", "Başlık", "Tür", "Durum", "Müşteri", "Atanan Personel", "Oluşturulma Tarihi"};
+        for (int i = 0; i < columns.length; i++)
+        {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(columns[i]);
+            cell.setCellStyle(headerStyle);
+            sheet.setColumnWidth(i, 5000);
+        }
+
+        // Veri satırları
+        Map<String, String> statusLabels = Map.of(
+                "DRAFT", "Taslak",
+                "PENDING", "Bekliyor",
+                "IN_REVIEW", "İncelemede",
+                "APPROVED", "Onaylandı",
+                "REJECTED", "Reddedildi");
+
+        Map<String, String> typeLabels = Map.of(
+                "TRAFFIC_ACCIDENT", "Trafik Kazası",
+                "THEFT", "Hırsızlık",
+                "NATURAL_DISASTER", "Doğal Afet",
+                "OTHER", "Diğer");
+
+        int rowNum = 1;
+        for (ClaimResponse claim : claims)
+        {
+            Row row = sheet.createRow(rowNum++);
+            row.createCell(0).setCellValue(claim.getId());
+            row.createCell(1).setCellValue(claim.getTitle());
+            row.createCell(2).setCellValue(typeLabels.getOrDefault(claim.getClaimType() != null ? claim.getClaimType().name() : "OTHER", "Diğer"));
+            row.createCell(3).setCellValue(statusLabels.getOrDefault(claim.getStatus().name(), claim.getStatus().name()));
+            row.createCell(4).setCellValue(claim.getCustomerFullName());
+            row.createCell(5).setCellValue(claim.getAssignedToFullName() != null ? claim.getAssignedToFullName() : "Atanmamış");
+            row.createCell(6).setCellValue(claim.getCreatedAt().toString());
+        }
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        workbook.write(outputStream);
+        workbook.close();
+        System.out.println("Excel dosyasi basariyla olusturuldu");
+        return outputStream.toByteArray();
     }
 
     private ClaimResponse toResponse(Claim claim)

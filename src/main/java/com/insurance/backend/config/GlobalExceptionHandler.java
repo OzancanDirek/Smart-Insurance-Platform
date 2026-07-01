@@ -35,7 +35,9 @@ public class GlobalExceptionHandler
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGenericException(Exception ex)
     {
-        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Beklenmeyen bir hata oluştu");
+        ex.printStackTrace();
+        System.err.println("HATA: " + ex.getMessage());
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage()); // ← message'ı göster
     }
 
     private ResponseEntity<Map<String, Object>> buildResponse(HttpStatus status, String message)

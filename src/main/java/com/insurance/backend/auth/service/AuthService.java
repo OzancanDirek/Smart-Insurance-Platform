@@ -28,17 +28,29 @@ public class AuthService
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword()))
         {
-            auditLogService.log(request.getEmail(), "LOGIN_FAILED", "USER", null, "Hatalı şifre ile giriş denemesi");
-            throw new InvalidCredentialsException("Şifre hatalı");
+            auditLogService.log(
+                    request.getEmail(),
+                    "LOGIN_FAILED",
+                    "USER",
+                    null,
+                    "Hatali sifre ile giris denemesi"
+            );
+            throw new InvalidCredentialsException("Sifre hatali");
         }
 
         if (!user.isActive())
         {
-            throw new InvalidCredentialsException("Hesap aktif değil");
+            auditLogService.log(
+                    request.getEmail(),
+                    "LOGIN_FAILED",
+                    "USER",
+                    user.getId(),
+                    "Pasif hesap ile giriş denemesi"
+            );
+            throw new InvalidCredentialsException("Hesap aktif degil");
         }
-
         String token = jwtUtil.generateToken(user.getEmail(), user.getRole().name());
-        auditLogService.log(user.getEmail(), "LOGIN", "USER", user.getId(), "Kullanıcı giriş yaptı");
+        auditLogService.log(user.getEmail(), "LOGIN", "USER", user.getId(), "Kullanıcı giris yapti");
         return new LoginResponse(token, user.getEmail(), user.getRole().name());
     }
 }
