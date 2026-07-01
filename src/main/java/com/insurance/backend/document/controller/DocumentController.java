@@ -17,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.insurance.backend.claim.dto.ClaimResponse;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/documents")
@@ -33,7 +34,7 @@ public class DocumentController
         String role = authentication.getAuthorities().iterator().next().getAuthority();
 
         DocumentResponse doc = documentService.getDocumentById(id);
-        ClaimResponse claim = claimService.getClaimById(doc.getClaimId());
+        ClaimResponse claim = claimService.getClaimById(doc.getClaimId(), authentication.getName());
 
         if (role.equals("ROLE_CUSTOMER") && !claim.getCustomerEmail().equals(email))
         {
@@ -51,10 +52,9 @@ public class DocumentController
     }
 
     @PostMapping("/upload/{claimId}")
-    public ResponseEntity<DocumentResponse> uploadDocument(
-            @RequestParam("file") MultipartFile file,
-            @PathVariable Long claimId,
-            @AuthenticationPrincipal String email)
+    public ResponseEntity<DocumentResponse> uploadDocument(@RequestParam("file") MultipartFile file,
+                                                           @PathVariable Long claimId,
+                                                           @AuthenticationPrincipal String email)
     {
         return ResponseEntity.ok(documentService.uploadDocument(file, claimId, email));
     }
@@ -65,8 +65,7 @@ public class DocumentController
         String email = authentication.getName();
         String role = authentication.getAuthorities().iterator().next().getAuthority();
 
-        ClaimResponse claim = claimService.getClaimById(claimId);
-
+        ClaimResponse claim = claimService.getClaimById(claimId, authentication.getName());
         if (role.equals("ROLE_CUSTOMER") && !claim.getCustomerEmail().equals(email))
         {
             return ResponseEntity.status(403).build();
@@ -82,9 +81,26 @@ public class DocumentController
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<DocumentResponse> getDocumentById(@PathVariable Long id)
+    public ResponseEntity<DocumentResponse> getDocumentById(@PathVariable Long id, Authentication authentication)
     {
-        return ResponseEntity.ok(documentService.getDocumentById(id));
+        String email = authentication.getName();
+        String role = authentication.getAuthorities().iterator().next().getAuthority();
+
+        DocumentResponse doc = documentService.getDocumentById(id);
+        ClaimResponse claim = claimService.getClaimById(doc.getClaimId(), email);
+
+        if (role.equals("ROLE_CUSTOMER") && !claim.getCustomerEmail().equals(email))
+        {
+            return ResponseEntity.status(403).build();
+        }
+
+        if ((role.equals("ROLE_STAFF") || role.equals("ROLE_EXPERT"))
+                && (claim.getAssignedToEmail() == null || !claim.getAssignedToEmail().equals(email)))
+        {
+            return ResponseEntity.status(403).build();
+        }
+
+        return ResponseEntity.ok(doc);
     }
 
     @GetMapping("/type/{documentType}")
@@ -94,9 +110,32 @@ public class DocumentController
     }
 
     @GetMapping("/search")
-    public ResponseEntity<List<DocumentResponse>> search(@RequestParam String q)
+    public ResponseEntity<List<DocumentResponse>> search(@RequestParam String q, Authentication authentication)
     {
-        return ResponseEntity.ok(documentService.searchByText(q));
+        String email = authentication.getName();
+        String role = authentication.getAuthorities().iterator().next().getAuthority();
+
+        List<DocumentResponse> results = documentService.searchByText(q);
+
+        if (role.equals("ROLE_STAFF") || role.equals("ROLE_EXPERT"))
+        {
+            results = results.stream()
+                    .filter(doc -> {
+                        ClaimResponse claim = claimService.getClaimById(doc.getClaimId(), email);
+                        return claim.getAssignedToEmail() != null && claim.getAssignedToEmail().equals(email);
+                    })
+                    .collect(Collectors.toList());
+        }
+        else if (role.equals("ROLE_CUSTOMER"))
+        {
+            results = results.stream()
+                    .filter(doc -> {
+                        ClaimResponse claim = claimService.getClaimById(doc.getClaimId(), email);
+                        return claim.getCustomerEmail().equals(email);
+                    })
+                    .collect(Collectors.toList());
+        }
+        return ResponseEntity.ok(results);
     }
 
     @GetMapping("/paged")
@@ -121,8 +160,7 @@ public class DocumentController
             String role = authentication.getAuthorities().iterator().next().getAuthority();
 
             DocumentResponse doc = documentService.getDocumentById(id);
-            ClaimResponse claim = claimService.getClaimById(doc.getClaimId());
-
+            ClaimResponse claim = claimService.getClaimById(doc.getClaimId(), authentication.getName());
             if (role.equals("ROLE_CUSTOMER") && !claim.getCustomerEmail().equals(email))
             {
                 return ResponseEntity.status(403).build();

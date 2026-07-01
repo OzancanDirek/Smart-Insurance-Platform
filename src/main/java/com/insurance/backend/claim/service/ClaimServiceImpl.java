@@ -62,7 +62,7 @@ public class ClaimServiceImpl implements IClaimService
 
 
     @Override
-    public ClaimResponse updateStatus(Long id, ClaimStatus status)
+    public ClaimResponse updateStatus(Long id, ClaimStatus status, String performedBy)
     {
         Claim claim = claimRepository.findById(id)
                 .orElseThrow(() -> new ClaimNotFoundException(id));
@@ -84,18 +84,19 @@ public class ClaimServiceImpl implements IClaimService
             }
         }
 
+        ClaimStatus oldStatus = claim.getStatus();
         claim.setStatus(status);
         Claim saved = claimRepository.save(claim);
 
         auditLogService.log(
-                saved.getCustomer().getEmail(),
+                performedBy,  // işlemi yapan kişinin emaili
                 "STATUS_UPDATED",
                 "CLAIM",
                 saved.getId(),
-                "Durum güncellendi: " + status.name()
+                "Durum güncellendi: " + oldStatus.name() + " → " + status.name()
         );
 
-        if (status == ClaimStatus.APPROVED || status == ClaimStatus.REJECTED) // Email bildirimi — sadece onay veya red durumunda
+        if (status == ClaimStatus.APPROVED || status == ClaimStatus.REJECTED)
         {
             try
             {
@@ -111,7 +112,6 @@ public class ClaimServiceImpl implements IClaimService
                 // Email gönderilemese bile işlem devam etsin
             }
         }
-
         return toResponse(saved);
     }
 
@@ -123,13 +123,13 @@ public class ClaimServiceImpl implements IClaimService
     }
 
     @Override
-    public ClaimResponse getClaimById(Long id)
+    public ClaimResponse getClaimById(Long id, String performedBy)
     {
         Claim claim = claimRepository.findById(id)
                 .orElseThrow(() -> new ClaimNotFoundException(id));
 
         auditLogService.log(
-                claim.getCustomer().getEmail(),
+                performedBy,  // işlemi yapan kişinin emaili
                 "CLAIM_VIEWED",
                 "CLAIM",
                 id,
@@ -148,13 +148,22 @@ public class ClaimServiceImpl implements IClaimService
     }
 
     @Override
-    public List<ClaimResponse> getClaimsByCustomer(String email)// Müşterinin kendi başvurularını getirir
+    public List<ClaimResponse> getClaimsByCustomer(String email)
     {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UserNotFoundException(email));
 
-        return claimRepository.findByCustomerId(user.getId())
-                .stream()
+        List<Claim> claims = claimRepository.findByCustomerId(user.getId());
+
+        auditLogService.log(
+                user.getEmail(),
+                "CLAIM_LIST_VIEWED",
+                "USER",
+                user.getId(),
+                "Müşteri kendi başvuru listesini görüntüledi"
+        );
+
+        return claims.stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
@@ -182,8 +191,17 @@ public class ClaimServiceImpl implements IClaimService
                 .orElseThrow(() -> new UserNotFoundException(email));
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+
+        auditLogService.log(
+                user.getEmail(),
+                "SELF_CLAIM_VIEWED_",
+                "USER",
+                user.getId(),
+                "Musteri kendi basvuru listesini goruntuledi"
+        );
         return claimRepository.findByCustomerId(user.getId(), pageable).map(this::toResponse);
     }
+
 
     @Override
     public List<ClaimResponse> getClaimsByStatus(ClaimStatus status)//Belirli bir duruma sahip başvuruları filtreler
@@ -196,23 +214,29 @@ public class ClaimServiceImpl implements IClaimService
 
 
     @Override
-    public ClaimResponse assignClaim(Long claimId, Long userId)// Başvuruyu bir personel/eksper'e atar
+    public ClaimResponse assignClaim(Long claimId, Long userId, String performedBy)
     {
         Claim claim = claimRepository.findById(claimId)
                 .orElseThrow(() -> new ClaimNotFoundException(claimId));
 
-        User user = userRepository.findById(userId)
+        User newAssignee = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
-        claim.setAssignedTo(user);
+        String previousAssignee = claim.getAssignedTo() != null
+                ? claim.getAssignedTo().getFirstName() + " " + claim.getAssignedTo().getLastName()
+                : "Atanmamış";
+
+        claim.setAssignedTo(newAssignee);
         Claim saved = claimRepository.save(claim);
+
         auditLogService.log(
-                user.getEmail(),
+                performedBy,  // işlemi yapan MANAGER/ADMIN'in emaili
                 "CLAIM_ASSIGNED",
                 "CLAIM",
                 saved.getId(),
-                "Başvuru atandı: " + user.getFirstName() + " " + user.getLastName()
+                "Başvuru atandı: " + previousAssignee + " → " + newAssignee.getFirstName() + " " + newAssignee.getLastName()
         );
+
         return toResponse(saved);
     }
 
@@ -235,7 +259,6 @@ public class ClaimServiceImpl implements IClaimService
                 "other", allClaims.stream().filter(c -> c.getClaimType() == null || c.getClaimType() == ClaimType.OTHER).count()
         );
     }
-
 
 
     @Override
@@ -261,15 +284,31 @@ public class ClaimServiceImpl implements IClaimService
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UserNotFoundException(email));
 
+        auditLogService.log(
+                user.getEmail(),
+                "SELF_CLAIM_WATCHED",
+                "USER",
+                user.getId(),
+                "Personel kendi atanan başvuru listesini görüntüledi"
+
+        );
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         return claimRepository.findByAssignedToId(user.getId(), pageable).map(this::toResponse);
     }
 
     @Override
-    public void  deleteClaim(Long id)
+    public void deleteClaim(Long id, String performedBy)
     {
         Claim claim = claimRepository.findById(id)
                 .orElseThrow(() -> new ClaimNotFoundException(id));
+
+        auditLogService.log(
+                performedBy,
+                "CLAIM_DELETED",
+                "CLAIM",
+                id,
+                "Başvuru silindi: " + claim.getTitle()
+        );
 
         claimRepository.delete(claim);
     }

@@ -33,6 +33,7 @@ public class AuditLogService
         return auditLogRepository.findAllByOrderByCreatedAtDesc();
     }
 
+
     public List<AuditLog> getLogsByUser(String email)
     {
         return auditLogRepository.findByUserEmailOrderByCreatedAtDesc(email);

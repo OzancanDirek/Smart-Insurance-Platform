@@ -43,7 +43,7 @@ public class ClaimController
         {
             return ResponseEntity.status(403).build();
         }
-        claimService.deleteClaim(id);
+        claimService.deleteClaim(id, authentication.getName());
         return ResponseEntity.noContent().build();
     }
 
@@ -59,19 +59,17 @@ public class ClaimController
         String email = authentication.getName();
         String role = authentication.getAuthorities().iterator().next().getAuthority();
 
-        ClaimResponse claim = claimService.getClaimById(id);
+        ClaimResponse claim = claimService.getClaimById(id, email);
 
         if (role.equals("ROLE_CUSTOMER") && !claim.getCustomerEmail().equals(email))
         {
             return ResponseEntity.status(403).build();
         }
-
         if ((role.equals("ROLE_STAFF") || role.equals("ROLE_EXPERT"))
                 && (claim.getAssignedToEmail() == null || !claim.getAssignedToEmail().equals(email)))
         {
             return ResponseEntity.status(403).build();
         }
-
         return ResponseEntity.ok(claim);
     }
 
@@ -114,7 +112,7 @@ public class ClaimController
             }
         }
 
-        return ResponseEntity.ok(claimService.updateStatus(id, status));
+        return ResponseEntity.ok(claimService.updateStatus(id, status, authentication.getName()));
     }
 
     @PatchMapping("/{id}/assign")
@@ -125,7 +123,7 @@ public class ClaimController
         {
             return ResponseEntity.status(403).build();
         }
-        return ResponseEntity.ok(claimService.assignClaim(id, userId));
+        return ResponseEntity.ok(claimService.assignClaim(id, userId, authentication.getName()));
     }
 
     @GetMapping("/paged")

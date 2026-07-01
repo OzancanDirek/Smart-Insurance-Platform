@@ -2,6 +2,7 @@ package com.insurance.backend.document.service;
 
 import com.insurance.backend.audit.service.AuditLogService;
 import com.insurance.backend.claim.entity.Claim;
+import com.insurance.backend.claim.enums.ClaimStatus;
 import com.insurance.backend.claim.repository.ClaimRepository;
 import com.insurance.backend.document.dto.DocumentResponse;
 import com.insurance.backend.document.entity.Document;
@@ -9,6 +10,7 @@ import com.insurance.backend.document.enums.DocumentType;
 import com.insurance.backend.document.repository.DocumentRepository;
 import com.insurance.backend.document.search.DocumentSearchDocument;
 import com.insurance.backend.document.search.DocumentSearchRepository;
+import com.insurance.backend.exception.ClaimAlreadyFinalizedException;
 import com.insurance.backend.user.entity.User;
 import com.insurance.backend.user.repository.UserRepository;
 import io.minio.BucketExistsArgs;
@@ -112,13 +114,19 @@ public class DocumentServiceImpl implements IDocumentService
             throw new InvalidFileException("Geçersiz dosya tipi. Sadece PDF, JPG ve PNG kabul edilir.");
         }
 
-        if (file.getSize() > 10 * 1024 * 1024) //Dosya boyutu kontrolü (10MB)
+        if (file.getSize() > 10 * 1024 * 1024)
         {
-            throw new InvalidFileException("Dosya boyutu 10MB'ı geçemez.");
+            throw new InvalidFileException("Dosya boyutu 10MB'ı gecemez.");
         }
 
         Claim claim = claimRepository.findById(claimId)
                 .orElseThrow(() -> new ClaimNotFoundException(claimId));
+
+        // Sonuçlanmış başvuruya belge yüklenemez
+        if (claim.getStatus() == ClaimStatus.APPROVED || claim.getStatus() == ClaimStatus.REJECTED)
+        {
+            throw new ClaimAlreadyFinalizedException(claimId);
+        }
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UserNotFoundException(email));

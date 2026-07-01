@@ -14,7 +14,7 @@ public interface IClaimService
 {
     ClaimResponse createClaim(ClaimRequest request, String email);
 
-    ClaimResponse getClaimById(Long id); //istenilen tek basvuruyu getir
+    ClaimResponse getClaimById(Long id, String performedBy); //istenilen tek basvuruyu getir
 
     List<ClaimResponse> getAllClaims(); //Sistemdeki tüm başvuruları getirir.
 
@@ -22,9 +22,9 @@ public interface IClaimService
 
     List<ClaimResponse> getClaimsByStatus(ClaimStatus status);//Duruma göre filtreleme.
 
-    ClaimResponse updateStatus(Long id, ClaimStatus status);
+    ClaimResponse updateStatus(Long id, ClaimStatus status, String performedBy);
 
-    ClaimResponse assignClaim(Long claimId, Long userId);//Başvuruyu bir çalışana atar.
+    ClaimResponse assignClaim(Long claimId, Long userId, String performedBy);
 
     Page<ClaimResponse> getAllClaimsPaged(int page, int size); //tüm başvuruları sayfalı getirir
 
@@ -38,5 +38,5 @@ public interface IClaimService
 
     Page<ClaimResponse> getClaimsByAssignedStaffPaged(String email, int page, int size);
 
-    public void  deleteClaim(Long id);
+    void deleteClaim(Long id, String performedBy);
 }
